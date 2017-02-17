@@ -1,32 +1,178 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- import the websocket client library. You can code websockets from scratch
-         but we will just import a library. In this case we are using socket.io which is 
-         one of the most popular and feature rich websocket libraries.
-         
-         You can point the src for the script to any host online, but
-         by default the socket.io nodejs library will host the client library
-         online at your node.js address under /socket.io/socket.io.js 
-         You can disable that on the server if desired
-    -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.34/browser.min.js"></script>
-	<style>
-		textarea {
-			display: block;
-			background-color: #EEEEEE;
-		}
-	</style>
+  <!-- import the websocket client library. You can code websockets from scratch
+       but we will just import a library. In this case we are using socket.io which is 
+       one of the most popular and feature rich websocket libraries.
+
+       You can point the src for the script to any host online, but
+       by default the socket.io nodejs library will host the client library
+       online at your node.js address under /socket.io/socket.io.js 
+       You can disable that on the server if desired
+  -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.34/browser.min.js"></script>
+  <script type="text/babel">
+  //IIFE
+  ()=> {
+    //globals
+    const  connect = document.querySelector("#connect");
+    const chat = document.querySelector("#chat");
+    const bsColors = ["#ffcccc","#ffd4b3","#ffffb3","#ccffd8","#d4eff7","#f1ccff"];
+    let testVar = true;
+  // code goes here...
+    const connectSocket = (e) => {
+      const message = document. querySelector("#message");//dont want to be able to send messages untill connected.
+      const socket = io.connect();
+      
+      socket.on('connect', () =>{ //assuming this is magic atm
+        //console.log('connecting');
+
+        let user = document.querySelector("#username").value;
+
+        if(!user){
+          user = 'unknown';
+        }
+
+        socket.emit('join', {name:user});//this is what makes 
+
+        //get send button elmt and connect event
+        const sent = document.querySelector("#send");
+        send.addEventListener('click', ()=>{msgHandler(message, socket)});
+      
+        //change the connect button to the change username button so that people can't connect multiple times
+        connect.value = "change name";
+        if(testVar){
+          connect.addEventListener('click', ()=>{userNC({name:user},socket)});
+          connect.removeEventListener('click', connectSocket);
+          testVar = false;
+        }
+        
+      });
+
+      socket.on('msg', (data) =>{
+        //console.log(data);
+        chat.innerHTML += data.name + ": " + data.msg +"\n";
+
+      });
+
+      socket.on('bikeshed', (data) =>{
+        document.querySelector("#chat").style.backgroundColor = data.color;    
+      });
+
+      
+      socket.on('chatNC', (data) =>{
+        //data is an array, < 50, starting with /chatNC
+        //get ride of the /chatNC 
+        
+        const chatName = document.querySelector("#chatName");//stick up there^^
+        chatName.innerHTML = data.chatName;
+      });    
+      
+    };
+  
+    const msgHandler = (message,  socket) => {
+      //get the first character of message, if it /
+      
+      if(message.value.charAt(0)==='/'){
+        const msgArray = message.value.split(" ");
+        switch(msgArray[0]){
+          case '/bikeshed':
+            if(msgArray[1] === 'random' || msgArray[1] === undefined){
+              msgArray[1] = bsColors[Math.floor(Math.random() * bsColors.length)];
+              //make an array of colors up top, get a random #, pick from the array
+            }
+            socket.emit('bikeshedToServer', {color: msgArray[1]});
+            break;
+
+          case '/chatNC':
+            if(msgArray.length > 50){
+              //socket.emit('msg', { name: 'server', msg: 'That name is too long for the chat name.' });//just want that to send to that person
+              //okay it's not pretty but
+              chat.innerHTML += "server: The name that you entered is too long for the chat name.\n";
+              message.value = "";
+              break;
+            }
+            //remove first item in the array '/chatNC'
+            msgArray.shift();
+            let name = msgArray.join(' ');
+
+            socket.emit('chatNCToServer', {chatName: name});
+            message.value = "";
+            break;
+          default:
+            socket.emit('msgToServer',{msg:message.value});
+            message.value = "";
+            break;
+        }
+      }else{ // send the message to print out like normal
+        if(message.value != ""){
+          socket.emit('msgToServer',{msg:message.value});
+          message.value = "";
+        }
+      }
+    }
+    
+    const userNC = (data, socket) => {
+      //delete user from the user object becasue they are essentially just recconecting with a different name as a new user
+      //socket.emit('disconnect', data);
+      socket.disconnect();
+      socket.connect();
+      //console.dir(socket);
+    };
+
+    const init = () => {
+      connect.addEventListener('click',connectSocket);
+    };
+
+    window.onload = init;
+  
+  }();//END IIFE 
+  </script>
+  <style>
+    body{
+      margin-top: 30px;
+      text-align: center;
+      background-color: #222222;
+      color: white;
+      font-family: "Comic Sans MS";
+    }
+    textarea {
+      position:relative;
+      margin: auto;
+      display: block;
+      background-color: #EEEEEE;
+      box-shadow: 3px 3px 5px #000;
+    }
+    input{
+      margin: 3px;
+    }
+    input{
+      border-radius: 1px;
+      padding: 4px;
+    }
+    #connect, #send{
+      background-color: hotpink;
+      font-family: "Comic Sans MS";
+      font-size: 1.1em;
+      border-color: pink;
+    }
+    #connect:hover, #send:hover{
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
-	<label for="user">Username:</label>
-	<input id="username" name="user" type="text"/>
-	<input id="connect" type='button' value='connect'/>
-	<br/>
-	<label for="message">Message:</label>
-	<input id="message" name="message" type="text"/>
-	<input id="send" type="button" value="send" />
-	
-	<textarea id="chat" rows="20" cols="40" readonly> </textarea>
+  <label for="user">Username:</label>
+  <input id="username" name="user" type="text"/>
+  <input id="connect" type='button' value='connect'/>
+  <br/>
+  <label for="message">Message:</label>
+  <input id="message" name="message" type="text"/>
+  <input id="send" type="button" value="send" />
+  <h3 id="chatName">meme chat</h3>
+  <textarea id="chat" rows="40" cols="80" readonly></textarea>
+  <p>Commands:<br />/bikeshed color/#000000/rgb(0,0,0)/random<br />/chatNC name that you want to change the chat name to</p>
+
 </body>
 </html>
